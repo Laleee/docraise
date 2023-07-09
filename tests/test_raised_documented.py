@@ -9,7 +9,7 @@ def test_raised_documented(code_sample_raised_documented):
     analyzer = Analyzer()
 
     # Act
-    analyzer.visit(code_sample_raised_documented)
+    analyzer.validate(code_sample_raised_documented)
 
     # Assert
     assert len(analyzer.violations) == 0

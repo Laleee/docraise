@@ -39,16 +39,20 @@ class Violation:
         text: The description of the violation.
     """
 
+    filename: str
     lineno: int
     code: str
     text: str
 
     @classmethod
-    def from_code(cls, lineno: int, code: ViolationCodes, exc_name: str) -> "Violation":
+    def from_code(
+        cls, filename: str, lineno: int, code: ViolationCodes, exc_name: str
+    ) -> "Violation":
         """
         Factory method to create a Violation instance from a violation code.
 
         Args:
+            filename (str): Name of the file where the violation was detected.
             lineno (int): The line number where the violation was detected.
             code (ViolationCodes): The violation code.
             exc_name (str): The name of the exception associated with the violation.
@@ -56,4 +60,12 @@ class Violation:
         Returns:
             Violation: A new Violation instance.
         """
-        return cls(lineno=lineno, code=code.name, text=code.value.format(name=exc_name))
+        return cls(
+            filename=filename,
+            lineno=lineno,
+            code=code.name,
+            text=code.value.format(name=exc_name),
+        )
+
+    def __str__(self):
+        return f"{self.filename}:{self.lineno}: \033[31m{self.code}\033[0m {self.text}"

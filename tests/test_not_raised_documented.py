@@ -9,8 +9,8 @@ def test_not_raised_documented(code_sample_not_raised_documented):
     analyzer = Analyzer()
 
     # Act
-    analyzer.visit(code_sample_not_raised_documented)
+    violations = analyzer.validate(code_sample_not_raised_documented)
 
     # Assert
-    assert len(analyzer.violations) == 1
+    assert len(violations) == 1
     assert analyzer.violations[0].code == 'DR002'

@@ -20,7 +20,7 @@ Example:
 """
 
 import ast
-from _ast import Call, ExceptHandler, FunctionDef, Name, Raise
+from _ast import Attribute, Call, ExceptHandler, FunctionDef, Name, Raise
 from ast import NodeVisitor
 from typing import Any, List, Optional, cast
 
@@ -36,6 +36,7 @@ class Analyzer(NodeVisitor):
     Attributes:
         violations: A list of detected violations.
         curr_func: The current function being visited.
+        curr_filename: The current file being visited.
         exceptions: A list of exceptions detected in the current function.
     """
 
@@ -43,12 +44,26 @@ class Analyzer(NodeVisitor):
         """Initialize the analyzer with empty violations, curr_func, and exceptions."""
 
         # If the violation is None that means that the user called just raise within the catch block
-        self.violations: List[Optional[Violation]] = []
+        # TODO: Ignore violations?
+        self.violations: List[Violation] = []
 
         self.curr_func: Optional[FunctionDef] = None
+        self.curr_filename: Optional[str] = None
 
         # Exception names or None if exception is not named (e.g., just raise within an except block)
         self.exceptions: List[Optional[str]] = []
+
+    def validate(
+        self, tree: ast.AST, filename: str = "Unknown file"
+    ) -> List[Violation]:
+        self.curr_filename = filename
+        self.violations = []
+
+        self.visit(tree)
+
+        self.curr_filename = None
+
+        return self.violations
 
     def visit_FunctionDef(self, node: FunctionDef) -> Any:
         """
@@ -62,10 +77,14 @@ class Analyzer(NodeVisitor):
         if self.curr_func is None:
             self.curr_func = node
         else:
-            print("PRENK")
+            print(
+                f"Error: Nested functions are not supported. Skipping '{self.curr_filename}:{node.lineno} {node.name}'"
+            )
+            return
 
         self.generic_visit(node)
 
+        # TODO: Skip function if it doesn't have docstring?
         docstr = parse(ast.get_docstring(node))
         documented_exceptions = [e.type_name for e in docstr.raises]
 
@@ -73,9 +92,10 @@ class Analyzer(NodeVisitor):
         for exception in self.exceptions:
             if exception not in documented_exceptions:
                 assert exception is not None  # TODO: mypy error, handle better
+                assert self.curr_filename is not None
 
                 violation = Violation.from_code(
-                    node.lineno, ViolationCodes.DR001, exception
+                    self.curr_filename, node.lineno, ViolationCodes.DR001, exception
                 )
                 self.violations.append(violation)
 
@@ -83,9 +103,10 @@ class Analyzer(NodeVisitor):
         for exception in documented_exceptions:
             if exception not in self.exceptions:
                 assert exception is not None  # TODO: mypy error, handle better
+                assert self.curr_filename is not None
 
                 violation = Violation.from_code(
-                    node.lineno, ViolationCodes.DR002, exception
+                    self.curr_filename, node.lineno, ViolationCodes.DR002, exception
                 )
                 self.violations.append(violation)
 
@@ -104,8 +125,14 @@ class Analyzer(NodeVisitor):
         if isinstance(node.exc, Name):
             self.exceptions.append(node.exc.id)
         elif isinstance(node.exc, Call):
-            name_node = cast(Name, node.exc.func)  # Required for mypy error
-            self.exceptions.append(name_node.id)
+            if isinstance(node.exc.func, Name):
+                self.exceptions.append(node.exc.func.id)
+            elif isinstance(node.exc.func, Attribute):
+                self.exceptions.append(node.exc.func.attr)
+            else:
+                raise AssertionError("IDK")
+        elif isinstance(node.exc, Attribute):
+            self.exceptions.append(node.exc.attr)
         else:
             self.exceptions.append(None)
 
@@ -128,12 +155,13 @@ class Analyzer(NodeVisitor):
 
         node_type = cast(Name, node.type)  # Required for mypy
 
-        latest_exception = self.exceptions.pop()
-        if latest_exception is None:  # only used raise
-            # This exception will be raised
-            self.exceptions.append(node_type.id)
-        elif latest_exception == node.name:  # e.g., raise e
-            # Switch name with the actual exception name
-            self.exceptions.append(node_type.id)
-        else:  # raise ValueError, raise ValueError()
-            self.exceptions.append(latest_exception)
+        if self.exceptions:
+            latest_exception = self.exceptions.pop()
+            if latest_exception is None:  # only used raise
+                # This exception will be raised
+                self.exceptions.append(node_type.id)
+            elif latest_exception == node.name:  # e.g., raise e
+                # Switch name with the actual exception name
+                self.exceptions.append(node_type.id)
+            else:  # raise ValueError, raise ValueError()
+                self.exceptions.append(latest_exception)

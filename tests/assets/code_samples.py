@@ -19,6 +19,20 @@ raised_not_documented = {
             raise ValueError
         return a / b
     """),
+    "raise class attribute exc": textwrap.dedent("""
+    def divide(a, b):
+        '''Divide a by b.'''
+        if b == 0:
+            raise exc.ValueError
+        return a / b
+    """),
+    "raise class attribute instance": textwrap.dedent("""
+    def divide(a, b):
+        '''Divide a by b.'''
+        if b == 0:
+            raise exc.ValueError()
+        return a / b
+    """),
     "reraise": textwrap.dedent("""
     def divide(a, b):
         '''Divide a by b.'''
@@ -97,6 +111,31 @@ raised_documented = {
         '''
         if b == 0:
             raise ValueError  # Raise value error class
+        return a / b
+    """),
+    # This or require exc.ValueError in docstring
+    "raise class attribute class": textwrap.dedent("""
+    def divide(a, b):
+        '''
+        Divide a by b.
+
+        Raises:
+            ValueError: if b is zero
+        '''
+        if b == 0:
+            raise exc.ValueError
+        return a / b
+    """),
+    "raise class attribute instance": textwrap.dedent("""
+    def divide(a, b):
+        '''
+        Divide a by b.
+
+        Raises:
+            ValueError: if b is zero
+        '''
+        if b == 0:
+            raise exc.ValueError()
         return a / b
     """),
     "reraise": textwrap.dedent("""
