@@ -20,9 +20,8 @@ Example:
 """
 
 import ast
-from _ast import Attribute, Call, ExceptHandler, FunctionDef, Name, Raise
 from ast import NodeVisitor
-from typing import Any, List, Optional, cast
+from typing import Any, List, Optional
 
 from docstring_parser import parse
 
@@ -47,7 +46,7 @@ class Analyzer(NodeVisitor):
         # TODO: Ignore violations?
         self.violations: List[Violation] = []
 
-        self.curr_func: Optional[FunctionDef] = None
+        self.curr_func: Optional[ast.FunctionDef] = None
         self.curr_filename: Optional[str] = None
 
         # Exception names or None if exception is not named (e.g., just raise within an except block)
@@ -65,7 +64,7 @@ class Analyzer(NodeVisitor):
 
         return self.violations
 
-    def visit_FunctionDef(self, node: FunctionDef) -> Any:
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
         """
         Visit a function definition in the AST and checks for violations.
 
@@ -113,7 +112,7 @@ class Analyzer(NodeVisitor):
         self.curr_func = None
         self.exceptions = []
 
-    def visit_Raise(self, node: Raise) -> Any:
+    def visit_Raise(self, node: ast.Raise) -> Any:
         """
         Visit a raise statement in the AST and checks for violations.
 
@@ -122,23 +121,23 @@ class Analyzer(NodeVisitor):
         Args:
             node (Raise): The raise statement node in the AST.
         """
-        if isinstance(node.exc, Name):
+        if isinstance(node.exc, ast.Name):
             self.exceptions.append(node.exc.id)
-        elif isinstance(node.exc, Call):
-            if isinstance(node.exc.func, Name):
+        elif isinstance(node.exc, ast.Call):
+            if isinstance(node.exc.func, ast.Name):
                 self.exceptions.append(node.exc.func.id)
-            elif isinstance(node.exc.func, Attribute):
+            elif isinstance(node.exc.func, ast.Attribute):
                 self.exceptions.append(node.exc.func.attr)
             else:
-                raise AssertionError("IDK")
-        elif isinstance(node.exc, Attribute):
+                raise AssertionError("Case not covered")
+        elif isinstance(node.exc, ast.Attribute):
             self.exceptions.append(node.exc.attr)
         else:
             self.exceptions.append(None)
 
         self.generic_visit(node)
 
-    def visit_ExceptHandler(self, node: ExceptHandler) -> Any:
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> Any:
         """
         Visit an exception handler in the AST and checks for violations.
 
@@ -153,15 +152,53 @@ class Analyzer(NodeVisitor):
 
         self.generic_visit(node)
 
-        node_type = cast(Name, node.type)  # Required for mypy
-
         if self.exceptions:
             latest_exception = self.exceptions.pop()
+
             if latest_exception is None:  # only used raise
-                # This exception will be raised
-                self.exceptions.append(node_type.id)
+                if isinstance(node.type, ast.Name):
+                    # This exception will be raised
+                    self.exceptions.append(node.type.id)
+                elif isinstance(node.type, ast.Tuple):
+                    # These exceptions will be raised
+                    exceptions: List[ast.Name] = [
+                        n for n in node.type.elts if isinstance(n, ast.Name)
+                    ]
+
+                    assert len(exceptions) == len(
+                        node.type.elts
+                    ), "Case not covered"  # All are of type ast.Name
+
+                    self.exceptions.extend(e.id for e in exceptions)
+                elif node.type is None:
+                    # Only raise
+                    """
+                    try:
+                        pass
+                    except:
+                        raise
+                    """
+                    # In this case the exception documentation will be ignored since it's missing a name
+                    pass
+                else:
+                    raise AssertionError("Case not covered")
             elif latest_exception == node.name:  # e.g., raise e
                 # Switch name with the actual exception name
-                self.exceptions.append(node_type.id)
+                if isinstance(node.type, ast.Name):  # e.g., except ValueError as e
+                    self.exceptions.append(node.type.id)
+                elif isinstance(
+                    node.type, ast.Tuple
+                ):  # e.g., except (ValueError, AttributeError) as e
+                    _exceptions: List[ast.Name] = [  # _ because of mypy no-redef
+                        n for n in node.type.elts if isinstance(n, ast.Name)
+                    ]
+
+                    assert len(_exceptions) == len(
+                        node.type.elts
+                    ), "Case not covered"  # All must be names
+
+                    self.exceptions.extend(e.id for e in _exceptions)
+                else:
+                    raise AssertionError("Case not covered")
             else:  # raise ValueError, raise ValueError()
                 self.exceptions.append(latest_exception)

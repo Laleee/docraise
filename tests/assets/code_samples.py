@@ -5,70 +5,104 @@ import textwrap
 # TODO: README note - Raises vs Raises:
 
 raised_not_documented = {
-    "raise an instance of value error": textwrap.dedent("""
+    # sample name: (sample_string, expected_exceptions)
+    "raise an instance of value error": (textwrap.dedent("""
     def divide(a, b):
         '''Divide a by b.'''
         if b == 0:
             raise ValueError()
         return a / b
-    """),
-    "raise value error class": textwrap.dedent("""
+    """), ["ValueError"]),
+    "raise value error class": (textwrap.dedent("""
     def divide(a, b):
         '''Divide a by b.'''
         if b == 0:
             raise ValueError
         return a / b
-    """),
-    "raise class attribute exc": textwrap.dedent("""
+    """), ["ValueError"]),
+    "raise class attribute exc": (textwrap.dedent("""
     def divide(a, b):
         '''Divide a by b.'''
         if b == 0:
             raise exc.ValueError
         return a / b
-    """),
-    "raise class attribute instance": textwrap.dedent("""
+    """), ["ValueError"]),
+    "raise class attribute instance": (textwrap.dedent("""
     def divide(a, b):
         '''Divide a by b.'''
         if b == 0:
             raise exc.ValueError()
         return a / b
-    """),
-    "reraise": textwrap.dedent("""
+    """), ["ValueError"]),
+    "reraise": (textwrap.dedent("""
     def divide(a, b):
         '''Divide a by b.'''
         try:
             return a / b
         except ZeroDivisionError:
             raise
-    """),
-    "reraise named": textwrap.dedent("""
+    """), ["ZeroDivisionError"]),
+    "reraise named": (textwrap.dedent("""
     def divide(a, b):
         '''Divide a by b.'''
         try:
             return a / b
         except ZeroDivisionError as e:
             raise e
-    """),
-    "exception instance chaining": textwrap.dedent("""
+    """), ["ZeroDivisionError"]),
+    "exception instance chaining": (textwrap.dedent("""
     def divide(a, b):
         '''Divide a by b.'''
         try:
             return a / b
         except ZeroDivisionError as e:
             raise ValueError() from e
-    """),
-    "exception class chaining": textwrap.dedent("""
+    """), ['ValueError']),
+    "exception class chaining": (textwrap.dedent("""
     def divide(a, b):
         '''Divide a by b.'''
         try:
             return a / b
         except ZeroDivisionError as e:
             raise ValueError from e
-    """)
+    """), ["ValueError"]),
+    "multi-exception catch raise from": (textwrap.dedent("""
+    def divide(a, b):
+        '''Divide a by b.'''
+        try:
+            return a / b
+        except (SomeError, ZeroDivisionError) as e:
+            raise ValueError from e
+    """), ["ValueError"]),
+    "multi-exception catch just raise": (textwrap.dedent("""
+    def divide(a, b):
+        '''Divide a by b.'''
+        try:
+            return a / b
+        except (SomeError, ZeroDivisionError):
+            raise
+    """), ["SomeError", "ZeroDivisionError"]),
+    "multi-exception catch named": (textwrap.dedent("""
+    def divide(a, b):
+        '''Divide a by b.'''
+        try:
+            return a / b
+        except (SomeError, ZeroDivisionError) as e:
+            raise e
+    """), ["SomeError", "ZeroDivisionError"]),
+    # Special test case: Cannot determine the name -> Cannot require docstring raise
+    "empty except": (textwrap.dedent("""
+    def divide(a, b):
+        '''Divide a by b.'''
+        try:
+            return a / b
+        except:
+            raise
+    """), []),
 }
 
 not_raised_documented = {
-    "basic": textwrap.dedent("""
+    "basic": (textwrap.dedent("""
     def add(a, b):
         '''
         Add a and b.
@@ -77,7 +111,31 @@ not_raised_documented = {
             TypeError: If a or b is not an integer.
         '''
         return a + b  # Does not actually raise TypeError.
-    """)
+    """), ["TypeError"]),
+    "multiple": (textwrap.dedent("""
+    def add(a, b):
+        '''
+        Add a and b.
+
+        Raises:
+            TypeError: If a or b is not an integer.
+            SomeError: If some error occurs
+        '''
+        return a + b  # Does not actually raise TypeError.
+    """), ["TypeError", "SomeError"]),
+    "partially ok": (textwrap.dedent("""
+    def add(a, b):
+        '''
+        Add a and b.
+
+        Raises:
+            TypeError: If a or b is not an integer.
+            DocumentedError: If some error occurs
+        '''
+        if a < 0:
+            raise DocumentedError
+        return a + b  # Does not actually raise TypeError.
+    """), ["TypeError"]),
 }
 
 not_raised_not_documented = {
@@ -85,8 +143,23 @@ not_raised_not_documented = {
     def add(a, b):
         '''Add a and b.'''
         return a + b  # Does not actually raise TypeError.
-    """)
+    """),
+    "ignored except block": textwrap.dedent("""
+    def divide(a, b):
+        try:
+            return a / b
+        except ZeroDivisionError:
+            pass
+    """),
+    "ignored raw except block": textwrap.dedent("""
+    def divide(a, b):
+        try:
+            return a / b
+        except:
+            pass
+    """),
 }
+# TODO: finally block
 
 raised_documented = {
     "raise an instance of value error": textwrap.dedent("""
@@ -189,5 +262,33 @@ raised_documented = {
             return a / b
         except ZeroDivisionError as e:
             raise ValueError from e
+    """),
+    "multi-exception catch just raise": textwrap.dedent("""
+    def divide(a, b):
+        '''
+        Divide a by b.
+
+        Raises:
+            SomeError: on error
+            ZeroDivisionError: again on error
+        '''
+        try:
+            return a / b
+        except (SomeError, ZeroDivisionError):
+            raise
+    """),
+    "multi-exception catch named": textwrap.dedent("""
+    def divide(a, b):
+        '''
+        Divide a by b.
+
+        Raises:
+            SomeError: on error
+            ZeroDivisionError: again on error
+        '''
+        try:
+            return a / b
+        except (SomeError, ZeroDivisionError) as e:
+            raise e
     """)
 }
