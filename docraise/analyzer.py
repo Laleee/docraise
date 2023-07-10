@@ -14,9 +14,9 @@ Example:
         analyzer = Analyzer()
         with open('file_to_analyze.py') as f:
             tree = ast.parse(f.read())
-        analyzer.visit(tree)
+        violations = analyzer.check(tree)
 
-    The violations are stored in the analyzer's 'violations' attribute as instances of the Violation class.
+    The method check returns a list of violations (instances of Violation class).
 """
 
 import ast
